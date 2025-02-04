@@ -46,7 +46,7 @@ async def translate_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Main function
 def main():
     # Replace 'YOUR_TELEGRAM_BOT_TOKEN' with your actual bot token
-    application = ApplicationBuilder().token("YOUR_TELEGRAM_BOT_TOKEN").build()
+    application = ApplicationBuilder().token("8013290263:AAGc0aJ-lnUgI-0R2L7S3QSTSXH_d9Sj6sE").build()
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
