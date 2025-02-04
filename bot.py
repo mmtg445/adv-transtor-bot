@@ -1,61 +1,80 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import os
+import logging
+import telebot
+import pymongo
 from googletrans import Translator
+from flask import Flask
 
-# Initialize the translator
+# ✅ কনফিগারেশন সেটিংস
+API_ID = int(os.getenv("API_ID", "123456"))
+API_HASH = os.getenv("API_HASH", "your_api_hash")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "your_bot_token")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://your_mongo_uri")
+DEFAULT_LANG = "en"
+
+# ✅ MongoDB সংযোগ
+client = pymongo.MongoClient(MONGO_URI)
+db = client["translator_bot"]
+users_collection = db["users"]
+
+# ✅ টেলিগ্রাম বট সেটআপ
+bot = telebot.TeleBot(BOT_TOKEN)
 translator = Translator()
 
-# Start command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Welcome to the Advanced Translator Bot!\n\n"
-        "Send me any text, and I will translate it for you.\n"
-        "Use /help to see available commands."
-    )
+# ✅ Flask API হেলথ চেক
+app = Flask(__name__)
 
-# Help command
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Available commands:\n"
-        "/start - Start the bot\n"
-        "/help - Show this help message\n"
-        "/translate <text> - Translate text to English\n"
-        "/langs - Show supported languages\n"
-        "Just send me any text, and I will translate it to English by default!"
-    )
+@app.route('/health')
+def health_check():
+    return {"status": "running"}, 200
 
-# List supported languages
-async def list_languages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    languages = translator.get_supported_languages()
-    await update.message.reply_text(
-        f"Supported languages:\n\n{', '.join(languages)}"
-    )
+# ✅ ব্যবহারকারীর ভাষা সেটিংস ফাংশন
+def get_user_language(user_id):
+    user = users_collection.find_one({"user_id": user_id})
+    return user["language"] if user else DEFAULT_LANG
 
-# Translate text
-async def translate_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
+def set_user_language(user_id, language):
+    users_collection.update_one({"user_id": user_id}, {"$set": {"language": language}}, upsert=True)
+
+# ✅ অনুবাদ ফাংশন
+def translate_text(text, target_lang):
     try:
-        # Detect language and translate to English by default
-        translation = translator.translate(text, dest='en')
-        await update.message.reply_text(
-            f"Translated to English:\n\n{translation.text}"
-        )
+        translated = translator.translate(text, dest=target_lang)
+        return translated.text
     except Exception as e:
-        await update.message.reply_text(f"Error: {str(e)}")
+        logging.error(f"Translation Error: {e}")
+        return "⚠️ অনুবাদ করতে সমস্যা হয়েছে!"
 
-# Main function
-def main():
-    # Replace 'YOUR_TELEGRAM_BOT_TOKEN' with your actual bot token
-    application = ApplicationBuilder().token("8013290263:AAGc0aJ-lnUgI-0R2L7S3QSTSXH_d9Sj6sE").build()
+# ✅ ভাষা পরিবর্তন বোতাম
+@bot.message_handler(commands=['language'])
+def choose_language(message):
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    buttons = ["English", "বাংলা", "हिन्दी", "Español", "Français", "Deutsch"]
+    for btn in buttons:
+        markup.add(telebot.types.KeyboardButton(btn))
+    bot.send_message(message.chat.id, "🌍 আপনার পছন্দের ভাষা নির্বাচন করুন:", reply_markup=markup)
 
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("langs", list_languages))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_text))
+@bot.message_handler(func=lambda message: message.text in ["English", "বাংলা", "हिन्दी", "Español", "Français", "Deutsch"])
+def set_language(message):
+    lang_map = {"English": "en", "বাংলা": "bn", "हिन्दी": "hi", "Español": "es", "Français": "fr", "Deutsch": "de"}
+    user_id = message.from_user.id
+    set_user_language(user_id, lang_map[message.text])
+    bot.send_message(message.chat.id, f"✅ আপনার পছন্দের ভাষা সেট করা হয়েছে: {message.text}")
 
-    # Start the bot
-    application.run_polling()
+# ✅ বট কমান্ড হ্যান্ডলার
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "👋 স্বাগতম! আমি একটি উন্নত অনুবাদক বট। আপনি যেকোনো ভাষায় পাঠিয়ে দিন, আমি অনুবাদ করে দেব!\n\n🔧 ভাষা পরিবর্তন করতে /language ব্যবহার করুন।")
 
+@bot.message_handler(func=lambda message: True)
+def translate(message):
+    user_id = message.from_user.id
+    user_lang = get_user_language(user_id)
+    translated_text = translate_text(message.text, user_lang)
+    bot.reply_to(message, f"📝 অনুবাদ: {translated_text}")
+
+# ✅ Flask ও টেলিগ্রাম একত্রে চালানো
 if __name__ == "__main__":
-    main()
+    from threading import Thread
+    Thread(target=lambda: app.run(port=5000)).start()
+    bot.polling()
