@@ -6,10 +6,10 @@ from googletrans import Translator
 from flask import Flask
 
 # ✅ কনফিগারেশন সেটিংস
-API_ID = int(os.getenv("API_ID", "123456"))
-API_HASH = os.getenv("API_HASH", "your_api_hash")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "your_bot_token")
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://your_mongo_uri")
+API_ID = int(os.getenv("API_ID", "26649585"))
+API_HASH = os.getenv("API_HASH", "588a3ea6fd01ae88bd2e10fed7d55b2c")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8013290263:AAGc0aJ-lnUgI-0R2L7S3QSTSXH_d9Sj6sE")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://rohanahamed75:gt4RXJZ1mUtOh4Xv@mmtg.0ong5.mongodb.net/?retryWrites=true&w=majority&appName=mmtg)
 DEFAULT_LANG = "en"
 
 # ✅ MongoDB সংযোগ
